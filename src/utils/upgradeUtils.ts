@@ -24,6 +24,20 @@ export const ALL_UPGRADES: UpgradeCard[] = [
     description: 'Skews chest contents to heavily favor weapons over extra turns.',
     effectType: 'chest_sense',
   },
+  {
+    id: 'upwind_gust',
+    name: 'Gathering Gust',
+    rarity: 'common',
+    description: '+1 to the movement points every upwind grants. Stacks.',
+    effectType: 'upwind_gust',
+  },
+  {
+    id: 'upwind_gale',
+    name: 'Rising Gale',
+    rarity: 'common',
+    description: '+1 active upwind kept on the board. Stacks.',
+    effectType: 'upwind_gale',
+  },
 
   // Rare
   {
@@ -64,6 +78,13 @@ export const ALL_UPGRADES: UpgradeCard[] = [
     rarity: 'legendary',
     description: 'When about to drop to 0 HP, survive at 1 HP instead (one-time use).',
     effectType: 'second_wind',
+  },
+  {
+    id: 'upwind_reserves',
+    name: 'Windward Reserves',
+    rarity: 'legendary',
+    description: 'Leftover movement points carry into your next turn instead of being lost.',
+    effectType: 'upwind_reserves',
   },
 ];
 

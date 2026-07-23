@@ -28,7 +28,10 @@ export interface UpgradeCard {
     | 'marching_orders'
     | 'warlords_momentum'
     | 'twin_draw'
-    | 'second_wind';
+    | 'second_wind'
+    | 'upwind_gust'
+    | 'upwind_gale'
+    | 'upwind_reserves';
 }
 
 export interface LogEntry {
@@ -52,6 +55,10 @@ export interface PlayerState {
   twinDrawActive: boolean; // reveal 2 cards instead of 1
   secondWindAvailable: boolean; // survive at 1 HP
   hasSecondWindTriggered: boolean;
+  upwindBonusExtra: number; // extra points per upwind (effective = UPWIND_MOVEMENT_BONUS + this)
+  upwindCountExtra: number; // extra active upwinds kept on the board
+  carryOverActive: boolean; // leftover movement points carry into next turn
+  carriedPoints: number; // leftover points banked for the next turn
   activeUpgrades: string[]; // names of picked upgrades
 }
 

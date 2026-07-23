@@ -32,12 +32,16 @@ export function isOccupiedByUnit(
 /**
  * Checks if adding a chest at candidate position violates Sudoku constraints
  * (same row, same column, or same 2x3 box as an existing chest).
+ *
+ * `blockedCells` lists cells occupied by the OTHER entity type (e.g. upwinds when
+ * placing chests, or chests when placing upwinds) so the two never overlap.
  */
 export function isValidChestPlacement(
   candidate: Position,
   existingChests: Position[],
   playerPos: Position,
-  monsterPos: Position
+  monsterPos: Position,
+  blockedCells: Position[] = []
 ): boolean {
   // Can't place on player or monster
   if (isOccupiedByUnit(candidate, playerPos, monsterPos)) {
@@ -47,6 +51,15 @@ export function isValidChestPlacement(
   // Can't place on existing chest
   if (
     existingChests.some(
+      (c) => c.row === candidate.row && c.col === candidate.col
+    )
+  ) {
+    return false;
+  }
+
+  // Can't place on a cell occupied by the other entity type
+  if (
+    blockedCells.some(
       (c) => c.row === candidate.row && c.col === candidate.col
     )
   ) {
@@ -73,7 +86,8 @@ export function isValidChestPlacement(
 export function generateInitialChests(
   count: number,
   playerPos: Position,
-  monsterPos: Position
+  monsterPos: Position,
+  blockedCells: Position[] = []
 ): Position[] {
   const chests: Position[] = [];
 
@@ -92,7 +106,7 @@ export function generateInitialChests(
     allCells.sort(() => Math.random() - 0.5);
 
     for (const cell of allCells) {
-      if (isValidChestPlacement(cell, chests, playerPos, monsterPos)) {
+      if (isValidChestPlacement(cell, chests, playerPos, monsterPos, blockedCells)) {
         chests.push(cell);
         if (chests.length === count) return chests;
       }
@@ -109,14 +123,15 @@ export function generateInitialChests(
 export function spawnReplacementChest(
   existingChests: Position[],
   playerPos: Position,
-  monsterPos: Position
+  monsterPos: Position,
+  blockedCells: Position[] = []
 ): Position | null {
   const validCells: Position[] = [];
 
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
       const candidate = { row: r, col: c };
-      if (isValidChestPlacement(candidate, existingChests, playerPos, monsterPos)) {
+      if (isValidChestPlacement(candidate, existingChests, playerPos, monsterPos, blockedCells)) {
         validCells.push(candidate);
       }
     }
@@ -127,13 +142,14 @@ export function spawnReplacementChest(
     return validCells[randomIndex];
   }
 
-  // Relaxed fallback: place on any unoccupied cell
+  // Relaxed fallback: place on any unoccupied cell (still avoiding the other entity type)
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
       const candidate = { row: r, col: c };
       if (
         !isOccupiedByUnit(candidate, playerPos, monsterPos) &&
-        !existingChests.some((chestPos) => chestPos.row === r && chestPos.col === c)
+        !existingChests.some((chestPos) => chestPos.row === r && chestPos.col === c) &&
+        !blockedCells.some((b) => b.row === r && b.col === c)
       ) {
         return candidate;
       }

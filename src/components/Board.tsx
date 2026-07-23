@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Position, TurnPhase } from '../types';
 import { BOARD_SIZE, SUDOKU_BOX_ROWS, SUDOKU_BOX_COLS } from '../constants';
 import { getSudokuBoxIndex, isAdjacent } from '../utils/boardUtils';
-import { Shield, Sparkles } from 'lucide-react';
+import { Wind } from 'lucide-react';
 
 interface BoardProps {
   playerPos: Position;
   monsterPos: Position;
   chests: Position[];
+  upwinds: Position[];
   phase: TurnPhase;
   movementPoints: number;
   reachableCells: { position: Position; cost: number; path: Position[] }[];
@@ -18,6 +19,7 @@ export const Board: React.FC<BoardProps> = ({
   playerPos,
   monsterPos,
   chests,
+  upwinds,
   phase,
   movementPoints,
   reachableCells,
@@ -57,7 +59,10 @@ export const Board: React.FC<BoardProps> = ({
               const isChest = chests.some(
                 (c) => c.row === row && c.col === col
               );
-              const isReachable = reachableMap.has(key);
+              const isUpwind = upwinds.some(
+                (u) => u.row === row && u.col === col
+              );
+              const isReachable = reachableMap.has(key) && !isMonster;
               const reachableInfo = reachableMap.get(key);
               const isAdjacentToPlayer = isAdjacent(playerPos, { row, col });
               const isHoveredPath = hoveredPathSet.has(key);
@@ -72,7 +77,11 @@ export const Board: React.FC<BoardProps> = ({
                 <div
                   key={key}
                   onClick={() => {
-                    if (phase === 'PLAYER_MOVE' && (isReachable || isAdjacentToPlayer)) {
+                    if (
+                      phase === 'PLAYER_MOVE' &&
+                      !isMonster &&
+                      (isReachable || isAdjacentToPlayer || isPlayer)
+                    ) {
                       onCellClick({ row, col }, reachableInfo?.path);
                     }
                   }}
@@ -163,8 +172,18 @@ export const Board: React.FC<BoardProps> = ({
                     </div>
                   )}
 
+                  {/* Upwind Icon */}
+                  {isUpwind && !isPlayer && !isMonster && !isChest && (
+                    <div className="z-10 flex flex-col items-center justify-center transition-transform hover:scale-110">
+                      <Wind
+                        className="w-6 h-6 sm:w-7 sm:h-7 text-sky-600"
+                        strokeWidth={2.5}
+                      />
+                    </div>
+                  )}
+
                   {/* Path step dot */}
-                  {isHoveredPath && !isPlayer && !isMonster && !isChest && (
+                  {isHoveredPath && !isPlayer && !isMonster && !isChest && !isUpwind && (
                     <div className="w-2.5 h-2.5 rounded-full bg-[#800000] opacity-80 animate-ping" />
                   )}
                 </div>
@@ -180,7 +199,10 @@ export const Board: React.FC<BoardProps> = ({
           <span className="w-3 h-3 border border-black bg-[#F5F1E9] inline-block" /> 2x3 Sudoku Boxes
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 bg-orange-500 border border-black inline-block" /> Chest (3)
+          <span className="w-3 h-3 bg-orange-500 border border-black inline-block" /> Chest
+        </span>
+        <span className="flex items-center gap-1">
+          <Wind className="w-3.5 h-3.5 text-sky-600" strokeWidth={2.5} /> Upwind (+move)
         </span>
         {phase === 'PLAYER_MOVE' && movementPoints > 0 && (
           <span className="font-bold text-[#800000] not-italic animate-pulse">

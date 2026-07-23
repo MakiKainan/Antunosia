@@ -19,6 +19,10 @@ export const SUDOKU_BOX_ROWS = 2; // 2 rows per box
 export const SUDOKU_BOX_COLS = 3; // 3 columns per box (total 6 boxes on a 6x6 grid)
 export const CHEST_COUNT_ON_BOARD = 3; // Active chests maintain constraint: max 1 per box, row, & col
 
+// Upwind Constraints (movement-boosting entity, placed like chests)
+export const UPWIND_COUNT_ON_BOARD = 2; // Active upwinds kept on the board at once
+export const UPWIND_MOVEMENT_BONUS = 2; // Movement points granted when landing on an upwind
+
 // Movement Card Value Distribution (1-6, weighted toward middle values)
 export const CARD_VALUE_WEIGHTS: { value: number; weight: number }[] = [
   { value: 1, weight: 1 },

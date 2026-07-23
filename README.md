@@ -19,11 +19,16 @@ before the monster catches up to you.
 1. Draw 3 face-down movement cards.
 2. Open one (or two, with the right upgrade) to reveal your movement points
    for the turn. Unopened cards are discarded.
-3. Move orthogonally across the board, one cell per point.
+3. Pick **one destination** up to that many tiles away (1 point per tile,
+   orthogonal). You commit to a single move — any leftover points are lost.
 4. Land on a chest → open it, a new chest spawns elsewhere to replace it.
-5. Reach the monster → combat.
-6. End of turn → pick one of three upgrade cards.
+5. Land on an **upwind** → gain bonus movement points and pick another
+   destination (see below).
+6. End of turn → combat resolves automatically, then pick one of three
+   upgrade cards.
 7. Repeat until the monster is defeated or your hearts run out.
+
+You may also click your own tile to hold position and end the turn without moving.
 
 ## Weapons
 
@@ -33,11 +38,23 @@ before the monster catches up to you.
 - The board always keeps a fixed number of chests active — collecting one
   spawns a replacement elsewhere, so weapon-farming is always an option.
 
+## Upwind
+
+- A second board entity that spawns like a chest (same sudoku box/row/col
+  constraint) and keeps a fixed count active.
+- Landing on an upwind grants `UPWIND_MOVEMENT_BONUS = 2` movement points and
+  lets you pick **another** destination that same turn — it's the only way to
+  extend a turn's movement, since a normal move ends your turn.
+- Collecting one spawns a replacement elsewhere, so upwinds can be chained.
+
 ## Combat
 
+- Combat resolves automatically at the **end of every turn**, regardless of
+  where you are on the board — the monster is a constant threat even while you
+  farm weapons. There's no "attack when adjacent" step anymore.
 - Monster: `MONSTER_MAX_HP = 10`. Player: `PLAYER_MAX_HP = 3` hearts.
 - You attack first (if armed). Land a hit of `STUN_THRESHOLD` damage or more
-  in one go and the monster is stunned, skipping its next attack.
+  in one go and the monster is stunned, skipping its counterattack this turn.
 - If it isn't stunned, it hits back for a flat `MONSTER_HIT_DAMAGE = 1`,
   regardless of its own remaining HP.
 - Monster HP hits 0 → you win. Your HP hits 0 → game over.
@@ -51,11 +68,14 @@ Offered as 3 random picks at the end of every turn, one pick per turn.
 | Common | Steady steps | +1 to every movement card's value. Stacks. |
 | Common | Whetstone | +1 to weapon base damage. Stacks. |
 | Common | Chest sense | Chests skew toward weapons over extra-turns. |
+| Common | Gathering gust | +1 to the movement points every upwind grants. Stacks. |
+| Common | Rising gale | +1 active upwind kept on the board. Stacks. |
 | Rare | Armory contract | Free +1 weapon at the start of every turn. |
 | Rare | Marching orders | Raises the minimum possible movement roll. |
 | Combo | Warlord's momentum | Armory contract + Marching orders, bundled. |
 | Legendary | Twin draw | Reveal 2 of 3 cards instead of 1; movement = their sum. |
 | Legendary | Second wind | Survive your first drop to 0 HP at 1 HP instead. One-time. |
+| Legendary | Windward reserves | Leftover movement points carry into your next turn. |
 
 ## Tunable constants
 
@@ -70,6 +90,8 @@ game can be rebalanced without touching logic:
 | `MONSTER_HIT_DAMAGE` | 1 | Flat damage taken per unstunned monster attack |
 | `WEAPON_BASE_DAMAGE` | 1 | Damage per stacked weapon |
 | `CHEST_COUNT_ON_BOARD` | 3 | Chests kept active on the board at once |
+| `UPWIND_COUNT_ON_BOARD` | 2 | Upwinds kept active on the board at once |
+| `UPWIND_MOVEMENT_BONUS` | 2 | Movement points granted per upwind |
 | Movement card range | 1-6 | Weighted toward the middle |
 
 ## Tech stack
@@ -84,24 +106,23 @@ game can be rebalanced without touching logic:
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-(Adjust once you know the exact scaffold Google AI Studio exports — Vite and
-CRA output slightly different scripts.)
+Vite serves the app on port 3000 (`npm run build` / `npm run preview` for a
+production bundle).
 
 ## Open design questions
 
 Things worth pinning down as the prototype takes shape:
 
-- Does reaching 0 weapons mid-combat block the attack button outright, or
-  just silently deal 0 damage?
-- Can the player retreat from combat once engaged, or is it fight-to-the-death
-  once you're adjacent to the monster?
+- Combat now happens every turn from turn 1, so an unarmed player takes 1 damage
+  per turn and dies in `PLAYER_MAX_HP` turns. Is that opening pressure right, or
+  should the monster hold fire until the player finds a first weapon?
 - Should the sudoku-box constraint on chest placement extend to where the
-  monster itself spawns each run?
-- Is "Twin draw" meant to sum two revealed cards, or let the player see two
-  and keep the better one?
+  monster itself spawns each run? (The monster is currently fixed.)
+- Should a normal move be allowed to path *through* the monster's cell, or route
+  around it? (Today the pathing ignores it; you just can't land there.)
 
 ## Credits
 
