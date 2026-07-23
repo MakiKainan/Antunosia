@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-serif-warm {
+    font-family: 'Georgia', Cambria, 'Times New Roman', Times, serif;
+  }
+  .font-hand {
+    font-family: 'Patrick Hand', 'Caveat', 'Georgia', serif;
+  }
+  .font-title {
+    font-family: 'Architects Daughter', 'Caveat', 'Georgia', serif;
+  }
+  .organic-card-1 {
+    border-radius: 8px 12px 8px 14px / 12px 8px 14px 8px;
+  }
+  .organic-card-2 {
+    border-radius: 12px 8px 14px 8px / 8px 12px 8px 14px;
+  }
+  .organic-card-3 {
+    border-radius: 8px 14px 8px 12px / 14px 8px 12px 8px;
+  }
+  .sketch-border {
+    border-style: solid;
+    border-width: 2px;
+    border-color: #1A1A1A;
+    border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  }
+  .sketch-border-sm {
+    border-style: solid;
+    border-width: 1.5px;
+    border-color: #1A1A1A;
+    border-radius: 185px 12px 175px 12px/12px 175px 12px 185px;
+  }
+  .shadow-solid-sm {
+    box-shadow: 2px 2px 0px 0px #1A1A1A;
+  }
+  .shadow-solid {
+    box-shadow: 4px 4px 0px 0px #1A1A1A;
+  }
+  .shadow-solid-lg {
+    box-shadow: 6px 6px 0px 0px #1A1A1A;
+  }
+}
+
+/* Custom scrollbar for combat log */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F1E9;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #800000;
+  border-radius: 4px;
+}
+

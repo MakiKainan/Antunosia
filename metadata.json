@@ -1,0 +1,6 @@
+{
+  "name": "Roguelite Card & Board Game Prototype",
+  "description": "A sketchy hand-drawn turn-based roguelite card and board game prototype with constraint-based chests, weapons, and upgrade cards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
