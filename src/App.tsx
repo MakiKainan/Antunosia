@@ -19,13 +19,14 @@ import {
   PLAYER_MAX_HP,
   PLAYER_START_POSITION,
   STUN_THRESHOLD,
+  UPWIND_COUNT_ON_BOARD,
+  UPWIND_MOVEMENT_BONUS,
   WEAPON_BASE_DAMAGE,
 } from './constants';
 import {
   drawWeightedMovementValue,
   generateInitialChests,
   getReachableCells,
-  isAdjacentOrSame,
   spawnReplacementChest,
 } from './utils/boardUtils';
 import { drawRandomUpgrades } from './utils/upgradeUtils';
@@ -61,6 +62,10 @@ export default function App() {
     twinDrawActive: false,
     secondWindAvailable: false,
     hasSecondWindTriggered: false,
+    upwindBonusExtra: 0,
+    upwindCountExtra: 0,
+    carryOverActive: false,
+    carriedPoints: 0,
     activeUpgrades: [],
   });
 
@@ -73,6 +78,7 @@ export default function App() {
 
   // Board State
   const [chests, setChests] = useState<Position[]>([]);
+  const [upwinds, setUpwinds] = useState<Position[]>([]);
 
   // Movement Cards
   const [cards, setCards] = useState<MovementCard[]>([]);
@@ -109,6 +115,13 @@ export default function App() {
       PLAYER_START_POSITION,
       MONSTER_FIXED_POSITION
     );
+    // Upwinds are placed like chests but must avoid the chest cells.
+    const initialUpwinds = generateInitialChests(
+      UPWIND_COUNT_ON_BOARD,
+      PLAYER_START_POSITION,
+      MONSTER_FIXED_POSITION,
+      initialChests
+    );
 
     setTurnNumber(1);
     setPhase('DEAL_CARDS');
@@ -127,6 +140,10 @@ export default function App() {
       twinDrawActive: false,
       secondWindAvailable: false,
       hasSecondWindTriggered: false,
+      upwindBonusExtra: 0,
+      upwindCountExtra: 0,
+      carryOverActive: false,
+      carriedPoints: 0,
       activeUpgrades: [],
     };
 
@@ -138,6 +155,7 @@ export default function App() {
       isStunned: false,
     });
     setChests(initialChests);
+    setUpwinds(initialUpwinds);
     setCards([]);
     setSelectedCardsCount(0);
     setMovementPoints(0);
@@ -204,11 +222,10 @@ export default function App() {
       c.id === cardId ? { ...c, isRevealed: true, isSelected: true } : c
     );
 
-    const newMovementPoints = movementPoints + targetCard.modifiedValue;
+    let newMovementPoints = movementPoints + targetCard.modifiedValue;
 
     setCards(updatedCards);
     setSelectedCardsCount(newSelectedCount);
-    setMovementPoints(newMovementPoints);
 
     addLog(
       `Revealed card value: +${targetCard.modifiedValue} movement points!`,
@@ -217,35 +234,50 @@ export default function App() {
 
     // If reached max card draws, transition to PLAYER_MOVE
     if (newSelectedCount >= maxToReveal) {
+      // Fold in any points carried over from last turn (Windward Reserves)
+      if (player.carriedPoints > 0) {
+        newMovementPoints += player.carriedPoints;
+        addLog(
+          `💨 Windward Reserves banked +${player.carriedPoints} movement points from last turn!`,
+          'info'
+        );
+        setPlayer((prev) => ({ ...prev, carriedPoints: 0 }));
+      }
+
       setPhase('PLAYER_MOVE');
       addLog(
-        `Movement phase active! Total points: ${newMovementPoints}. Click highlighted board cell to step.`,
+        `Movement phase active! Total points: ${newMovementPoints}. Pick ONE destination cell (or your own tile to stay).`,
         'info'
       );
     }
+
+    setMovementPoints(newMovementPoints);
   };
 
-  // Combat Resolution Trigger
-  const triggerCombat = (currPlayer: PlayerState, currMonster: MonsterState) => {
+  // End-of-turn combat: player strikes first, then the monster counterattacks.
+  // Returns the resolved units and whether the run ended (victory/defeat).
+  const resolveCombat = (
+    currPlayer: PlayerState,
+    currMonster: MonsterState
+  ): { ended: boolean; player: PlayerState; monster: MonsterState } => {
     setPhase('COMBAT_RESOLUTION');
-    addLog('⚔️ COMBAT TRIGGERED with the Scribble Monster!', 'combat');
+    addLog('⚔️ End of turn — you clash with the Scribble Monster!', 'combat');
 
     let updatedMonster = { ...currMonster };
     let updatedPlayer = { ...currPlayer };
 
-    // 1. Player Attacks First
+    // 1. Player Attacks First (if armed)
     if (updatedPlayer.weaponCount === 0) {
       addLog(
-        '⚠️ No weapons equipped! Unable to strike monster this turn.',
+        '⚠️ No weapons equipped! Unable to strike the monster this turn.',
         'warning'
       );
     } else {
       const damage = updatedPlayer.weaponCount * updatedPlayer.weaponBaseDamage;
-      const newMonsterHp = Math.max(0, updatedMonster.hp - damage);
-      updatedMonster.hp = newMonsterHp;
+      updatedMonster.hp = Math.max(0, updatedMonster.hp - damage);
 
       addLog(
-        `💥 Player struck monster for ${damage} damage! (Monster HP: ${newMonsterHp}/${updatedMonster.maxHp})`,
+        `💥 Player struck monster for ${damage} damage! (Monster HP: ${updatedMonster.hp}/${updatedMonster.maxHp})`,
         'combat'
       );
 
@@ -253,30 +285,25 @@ export default function App() {
       if (damage >= STUN_THRESHOLD) {
         updatedMonster.isStunned = true;
         addLog(
-          '⚡ STUNNING HIT! Struck for >= 3 damage! Monster is stunned and skips counterattack!',
+          '⚡ STUNNING HIT! Struck for >= 3 damage! Monster is stunned and skips its counterattack!',
           'combat'
         );
       }
 
       // Check Monster Defeat (Victory)
-      if (newMonsterHp <= 0) {
+      if (updatedMonster.hp <= 0) {
         setMonster(updatedMonster);
+        setPlayer(updatedPlayer);
         setPhase('VICTORY');
         addLog('🎉 VICTORY! You vanquished the Scribble Monster!', 'victory');
-        return;
+        return { ended: true, player: updatedPlayer, monster: updatedMonster };
       }
     }
-
-    setMonster(updatedMonster);
 
     // 2. Monster Counterattack (if alive)
     if (updatedMonster.isStunned) {
       addLog('Monster is stunned and skips its counterattack!', 'info');
-      // Reset stun at end of turn
-      updatedMonster.isStunned = false;
-      setMonster(updatedMonster);
     } else {
-      // Monster strikes player
       const newPlayerHp = updatedPlayer.hp - MONSTER_HIT_DAMAGE;
 
       if (newPlayerHp <= 0) {
@@ -285,21 +312,20 @@ export default function App() {
           updatedPlayer.hp = 1;
           updatedPlayer.secondWindAvailable = false;
           updatedPlayer.hasSecondWindTriggered = true;
-          setPlayer(updatedPlayer);
           addLog(
-            '💨 SECOND WIND TRIGGERED! Survived fatal strike at 1 HP!',
+            '💨 SECOND WIND TRIGGERED! Survived a fatal strike at 1 HP!',
             'combat'
           );
         } else {
           updatedPlayer.hp = 0;
           setPlayer(updatedPlayer);
+          setMonster({ ...updatedMonster, isStunned: false });
           setPhase('GAME_OVER');
           addLog('💀 GAME OVER! Player fell in battle.', 'defeat');
-          return;
+          return { ended: true, player: updatedPlayer, monster: updatedMonster };
         }
       } else {
         updatedPlayer.hp = newPlayerHp;
-        setPlayer(updatedPlayer);
         addLog(
           `Monster counterattacked! Player lost 1 HP (Hearts: ${newPlayerHp}/${updatedPlayer.maxHp})`,
           'combat'
@@ -307,115 +333,157 @@ export default function App() {
       }
     }
 
-    // After combat completes without game over/victory, proceed to end turn
-    finishTurn(updatedPlayer, updatedMonster);
+    // Reset stun at end of turn
+    updatedMonster.isStunned = false;
+    setMonster(updatedMonster);
+    setPlayer(updatedPlayer);
+    return { ended: false, player: updatedPlayer, monster: updatedMonster };
   };
 
-  // Finish turn and present upgrade options (unless bonus turn)
-  const finishTurn = (currPlayer: PlayerState, currMonster: MonsterState) => {
-    // Reset stun state for monster
-    setMonster({ ...currMonster, isStunned: false });
+  // End of turn: resolve combat, then either deal a bonus hand or offer upgrades.
+  const endOfTurn = (
+    currPlayer: PlayerState,
+    currMonster: MonsterState,
+    bonusPending: boolean
+  ) => {
+    const result = resolveCombat(currPlayer, currMonster);
+    if (result.ended) return;
 
-    if (isBonusTurn) {
-      addLog('Extra turn completed!', 'info');
+    if (bonusPending) {
+      addLog('Extra turn! A fresh hand is dealt.', 'info');
       setIsBonusTurn(false);
-      const nextTurn = turnNumber + 1;
-      setTurnNumber(nextTurn);
-      startNewTurn(nextTurn, currPlayer, false);
+      startNewTurn(turnNumber, result.player, true);
     } else {
       // Draw 3 upgrades
-      const options = drawRandomUpgrades(3, currPlayer.activeUpgrades);
+      const options = drawRandomUpgrades(3, result.player.activeUpgrades);
       setUpgradeOptions(options);
       setPhase('UPGRADE_SELECTION');
       addLog('Turn finished. Pick 1 Upgrade Card!', 'upgrade');
     }
   };
 
-  // Board Cell Click Handler (Movement)
+  // Board Cell Click Handler (Movement) — single destination per turn.
   const handleCellClick = (targetPos: Position, path?: Position[]) => {
     if (phase !== 'PLAYER_MOVE') return;
 
-    // Determine cost
-    const cost = path ? path.length - 1 : 1;
-    if (cost <= 0 || cost > movementPoints) return;
+    // The monster's cell is never a valid landing spot.
+    if (
+      targetPos.row === monster.position.row &&
+      targetPos.col === monster.position.col
+    ) {
+      return;
+    }
+
+    const isStay =
+      targetPos.row === player.position.row &&
+      targetPos.col === player.position.col;
+
+    // Determine cost (0 to hold position, otherwise tiles travelled)
+    const cost = isStay ? 0 : path ? path.length - 1 : 1;
+    if (cost < 0 || cost > movementPoints) return;
+    if (!isStay && cost <= 0) return;
 
     const remainingPoints = movementPoints - cost;
-    setMovementPoints(remainingPoints);
-    setPlayer((prev) => ({ ...prev, position: targetPos }));
 
-    addLog(
-      `Moved to row ${targetPos.row + 1}, col ${targetPos.col + 1} (-${cost} move pts).`,
-      'info'
+    // Move the pawn
+    let updatedPlayer: PlayerState = { ...player, position: targetPos };
+
+    if (isStay) {
+      addLog('Held position — ending the turn.', 'info');
+    } else {
+      addLog(
+        `Moved to row ${targetPos.row + 1}, col ${targetPos.col + 1} (-${cost} move pts).`,
+        'info'
+      );
+    }
+
+    // 1. Upwind? Refund points and let the player pick another destination.
+    const upwindIndex = upwinds.findIndex(
+      (u) => u.row === targetPos.row && u.col === targetPos.col
     );
 
-    // 1. Check if landed on a chest
+    if (upwindIndex !== -1) {
+      const remainingUpwinds = upwinds.filter((_, i) => i !== upwindIndex);
+      const replacement = spawnReplacementChest(
+        remainingUpwinds,
+        updatedPlayer.position,
+        monster.position,
+        chests
+      );
+      const nextUpwinds = replacement
+        ? [...remainingUpwinds, replacement]
+        : remainingUpwinds;
+      setUpwinds(nextUpwinds);
+
+      const bonus = UPWIND_MOVEMENT_BONUS + updatedPlayer.upwindBonusExtra;
+      const nextPoints = remainingPoints + bonus;
+      setPlayer(updatedPlayer);
+      setMovementPoints(nextPoints);
+      addLog(
+        `🌀 Caught an upwind! +${bonus} movement points — pick another destination. (Points: ${nextPoints})`,
+        'chest'
+      );
+      return; // stay in PLAYER_MOVE for another hop
+    }
+
+    // 2. Chest? Grant its reward, then the turn's movement ends.
     const chestIndex = chests.findIndex(
       (c) => c.row === targetPos.row && c.col === targetPos.col
     );
-
-    let currentChests = [...chests];
     let isExtraTurnReward = false;
 
     if (chestIndex !== -1) {
-      // Remove chest
-      currentChests.splice(chestIndex, 1);
-
-      // Spawn replacement chest elsewhere
-      const newChest = spawnReplacementChest(
-        currentChests,
-        targetPos,
-        monster.position
+      const remainingChests = chests.filter((_, i) => i !== chestIndex);
+      const replacement = spawnReplacementChest(
+        remainingChests,
+        updatedPlayer.position,
+        monster.position,
+        upwinds
       );
-      if (newChest) {
-        currentChests.push(newChest);
-      }
-      setChests(currentChests);
+      const nextChests = replacement
+        ? [...remainingChests, replacement]
+        : remainingChests;
+      setChests(nextChests);
 
-      // Roll chest reward
-      const weaponChance = player.chestSenseActive
+      const weaponChance = updatedPlayer.chestSenseActive
         ? CHEST_SENSE_WEAPON_CHANCE
         : DEFAULT_CHEST_WEAPON_CHANCE;
 
       if (Math.random() < weaponChance) {
-        // Weapon reward
-        setPlayer((prev) => {
-          const updated = { ...prev, weaponCount: prev.weaponCount + 1 };
-          addLog(
-            `🎁 Chest opened! Found a Weapon! Total weapons: ${updated.weaponCount}`,
-            'chest'
-          );
-          return updated;
-        });
-      } else {
-        // Extra Turn reward
+        updatedPlayer = {
+          ...updatedPlayer,
+          weaponCount: updatedPlayer.weaponCount + 1,
+        };
         addLog(
-          '🎁 Chest opened! Found an EXTRA TURN! Fresh hand dealt instantly!',
+          `🎁 Chest opened! Found a Weapon! Total weapons: ${updatedPlayer.weaponCount}`,
           'chest'
         );
+      } else {
         isExtraTurnReward = true;
+        addLog(
+          '🎁 Chest opened! Found an EXTRA TURN! A fresh hand follows this turn.',
+          'chest'
+        );
       }
     }
 
-    // 2. Check if reached or adjacent to monster cell
-    const reachedMonster = isAdjacentOrSame(targetPos, monster.position);
-
-    if (reachedMonster) {
-      triggerCombat(player, monster);
-      return;
+    // Movement ends. Bank leftover points if Windward Reserves is active.
+    if (updatedPlayer.carryOverActive && remainingPoints > 0) {
+      updatedPlayer = { ...updatedPlayer, carriedPoints: remainingPoints };
+      addLog(
+        `💨 Windward Reserves: ${remainingPoints} leftover point(s) banked for next turn.`,
+        'info'
+      );
     }
 
-    // 3. Handle Extra Turn reward
+    setPlayer(updatedPlayer);
+    setMovementPoints(0);
+
     if (isExtraTurnReward) {
       setIsBonusTurn(true);
-      startNewTurn(turnNumber, player, true);
-      return;
     }
 
-    // 4. Check if movement points exhausted
-    if (remainingPoints === 0) {
-      addLog('Movement points exhausted.', 'info');
-      finishTurn(player, monster);
-    }
+    endOfTurn(updatedPlayer, monster, isExtraTurnReward);
   };
 
   // Select Upgrade Handler
@@ -448,6 +516,26 @@ export default function App() {
         break;
       case 'second_wind':
         updatedPlayer.secondWindAvailable = true;
+        break;
+      case 'upwind_gust':
+        updatedPlayer.upwindBonusExtra += 1;
+        break;
+      case 'upwind_gale': {
+        updatedPlayer.upwindCountExtra += 1;
+        // Immediately raise the active upwind count by spawning one more.
+        const newUpwind = spawnReplacementChest(
+          upwinds,
+          updatedPlayer.position,
+          monster.position,
+          chests
+        );
+        if (newUpwind) {
+          setUpwinds((prev) => [...prev, newUpwind]);
+        }
+        break;
+      }
+      case 'upwind_reserves':
+        updatedPlayer.carryOverActive = true;
         break;
     }
 
@@ -505,6 +593,7 @@ export default function App() {
             playerPos={player.position}
             monsterPos={monster.position}
             chests={chests}
+            upwinds={upwinds}
             phase={phase}
             movementPoints={movementPoints}
             reachableCells={reachableCells}
