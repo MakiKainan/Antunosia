@@ -563,12 +563,9 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFBF7] text-[#1A1A1A] flex flex-col items-center p-2 sm:p-4 select-none font-serif-warm">
       {/* Header Title */}
       <header className="text-center mb-2">
-        <h1 className="font-serif-warm text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1A1A] flex items-center justify-center gap-2">
-          <span className="text-[#800000]">🗡️</span> SCRIBBLE ROGUELITE <span className="text-[#800000]">🛡️</span>
+        <h1 className="font-serif-warm text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1A1A]">
+          ANTUNOSIA
         </h1>
-        <p className="font-serif-warm text-xs text-[#1A1A1A] opacity-80 italic mt-0.5">
-          Turn #{turnNumber} • 6x6 Sudoku Grid Board • Draft Cards & Slay the Boss
-        </p>
       </header>
 
       {/* Main Container Layout */}
